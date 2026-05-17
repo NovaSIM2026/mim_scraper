@@ -11,6 +11,7 @@ def analyze(name, search_results):
         snippets += r.get("title", "") + ": " + r.get("body", "") + "\n"
         
     prompt = f"""You are an academic researcher. Analyze these search results for {name} Master in Management (MiM) program for Autumn/Fall 2026.
+If snippets are in another language, translate them internally and extract the details in English.
 Search Snippets:
 {snippets}
 Return ONLY raw JSON (no markdown):
@@ -67,7 +68,12 @@ Return ONLY raw JSON (no markdown):
                 continue
                 
             content = data["choices"][0]["message"]["content"].replace("```json", "").replace("```", "").strip()
-            return json.loads(content)
+            parsed = json.loads(content)
+            if isinstance(parsed, list) and len(parsed) > 0:
+                parsed = parsed[0]
+            if not isinstance(parsed, dict):
+                raise Exception("JSON is not a dictionary")
+            return parsed
         except Exception as e:
             if attempt < max_retries - 1:
                 # network error or parsing error, fallback model
@@ -116,26 +122,29 @@ def main():
             print("  SKIPPED - search failed", flush=True)
             continue
 
-        result = analyze(name, search_results)
-        if not result:
-            time.sleep(1)
-            continue
+        try:
+            result = analyze(name, search_results)
+            if not result:
+                time.sleep(1)
+                continue
 
-        status = result.get("status", "UNCLEAR")
-        program = result.get("program_name", "")
-        deadline = result.get("deadline", "")
-        fees = result.get("tuition_fees", "")
-        scholarships = result.get("scholarships", "")
+            status = result.get("status", "UNCLEAR")
+            program = result.get("program_name", "")
+            deadline = result.get("deadline", "")
+            fees = result.get("tuition_fees", "")
+            scholarships = result.get("scholarships", "")
 
-        print(f"  Program  : {program}", flush=True)
-        print(f"  Status   : {status} | Deadline: {deadline}", flush=True)
-        print(f"  Fees     : {fees}", flush=True)
+            print(f"  Program  : {program}", flush=True)
+            print(f"  Status   : {status} | Deadline: {deadline}", flush=True)
+            print(f"  Fees     : {fees}", flush=True)
 
-        if status != "CLOSED":
-            with open(OUTPUT_FILE, "a", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                writer.writerow([rank, name, country, program, status, deadline, fees, scholarships, target_url])
-            print("  >>> SAVED TO CSV <<<", flush=True)
+            if status != "CLOSED":
+                with open(OUTPUT_FILE, "a", newline="", encoding="utf-8") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([rank, name, country, program, status, deadline, fees, scholarships, target_url])
+                print("  >>> SAVED TO CSV <<<", flush=True)
+        except Exception as e:
+            print(f"  CRITICAL ERROR processing {name}: {e}", flush=True)
 
         time.sleep(2)
     print("\n=== COMPLETE ===", flush=True)
