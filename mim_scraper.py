@@ -107,22 +107,18 @@ UNIVERSITIES = [
     (100,"University of Groningen","Netherlands","https://www.rug.nl/masters/international-business-and-management/"),
 ]
 
-def read_page(url):
-    try:
-        r = requests.get(f"https://r.jina.ai/{url}", headers={"User-Agent": "Mozilla/5.0", "Accept": "text/plain"}, timeout=35)
-        return r.text
-    except Exception as e:
-        print(f"    Read error: {e}", flush=True)
-        return ""
-
-def analyze(name, text):
-    prompt = f"""You are an academic researcher. Today is May 2026.
-Analyze this website text from {name} for their Master in Management (MiM) or MSc Management program for Autumn/Fall 2026.
-Text: {text[:14000]}
+def analyze(name, search_results):
+    snippets = ""
+    for r in search_results:
+        snippets += r.get("title", "") + ": " + r.get("body", "") + "\n"
+        
+    prompt = f"""You are an academic researcher. Analyze these search results for {name} Master in Management (MiM) program for Autumn/Fall 2026.
+Search Snippets:
+{snippets}
 Return ONLY raw JSON (no markdown):
-{{"program_name":"name or Not Available","status":"OPEN or CLOSED or UNCLEAR","deadline":"exact date or Not Specified","tuition_fees":"amount with currency or Not Specified","scholarships":"names or Not Specified"}}"""
+{{"program_name":"exact program name found or Not Available","status":"OPEN or CLOSED or UNCLEAR","deadline":"exact date or Not Specified","tuition_fees":"amount with currency or Not Specified","scholarships":"names or Not Specified"}}"""
     
-    max_retries = 5
+    max_retries = 3
     for attempt in range(max_retries):
         try:
             r = requests.post(
@@ -140,7 +136,6 @@ Return ONLY raw JSON (no markdown):
             if "error" in data:
                 err_msg = str(data["error"].get("message", data["error"]))
                 if "Rate limit" in err_msg or "Please try again in" in err_msg:
-                    # Extract wait time from message or default to 20s
                     import re
                     match = re.search(r'try again in ([\d\.]+)s', err_msg)
                     wait_time = float(match.group(1)) + 1 if match else 20
@@ -153,10 +148,8 @@ Return ONLY raw JSON (no markdown):
             return json.loads(content)
         except Exception as e:
             if attempt < max_retries - 1:
-                print(f"    Groq error: {e}. Retrying...", flush=True)
-                time.sleep(15)
+                time.sleep(5)
             else:
-                print(f"    Groq error after {max_retries} retries: {e}", flush=True)
                 return None
 
 def main():
@@ -184,24 +177,24 @@ def main():
         print(f"\n[{rank}/{len(UNIVERSITIES)}] {name} ({country})", flush=True)
         
         # 1. Search for the exact admissions/deadline page using DuckDuckGo
-        search_query = f"{name} Master in Management admissions deadline tuition fees 2026"
+        search_query = f"{name} Master in Management admissions deadline tuition fees scholarships 2026"
         target_url = default_url
+        search_results = []
         try:
-            results = DDGS().text(search_query, max_results=1)
-            if results and len(results) > 0:
-                target_url = results[0]['href']
+            search_results = DDGS().text(search_query, max_results=4)
+            if search_results and len(search_results) > 0:
+                target_url = search_results[0]['href']
                 print(f"  Found Admissions URL: {target_url}", flush=True)
         except Exception as e:
-            print(f"  Search error: {e}. Falling back to default URL.", flush=True)
+            print(f"  Search error: {e}.", flush=True)
             
-        text = read_page(target_url)
-        if not text or len(text) < 200:
-            print("  SKIPPED - page unreadable", flush=True)
+        if not search_results:
+            print("  SKIPPED - search failed", flush=True)
             continue
 
-        result = analyze(name, text)
+        result = analyze(name, search_results)
         if not result:
-            time.sleep(2)
+            time.sleep(1)
             continue
 
         status = result.get("status", "UNCLEAR")
