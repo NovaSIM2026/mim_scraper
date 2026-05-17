@@ -1,4 +1,5 @@
 import requests, json, csv, time, os
+from ddgs import DDGS
 
 GROQ_API_KEY = "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"
 OUTPUT_FILE = "mim_programs.csv"
@@ -176,12 +177,24 @@ def main():
             writer = csv.writer(f)
             writer.writerow(["QS Rank", "University", "Country", "Program Name", "Status", "Autumn 2026 Deadline", "Tuition Fees", "Scholarships", "Application Link"])
 
-    for rank, name, country, url in UNIVERSITIES:
-        if url in saved_urls:
+    for rank, name, country, default_url in UNIVERSITIES:
+        if default_url in saved_urls:
             continue
             
         print(f"\n[{rank}/{len(UNIVERSITIES)}] {name} ({country})", flush=True)
-        text = read_page(url)
+        
+        # 1. Search for the exact admissions/deadline page using DuckDuckGo
+        search_query = f"{name} Master in Management admissions deadline tuition fees 2026"
+        target_url = default_url
+        try:
+            results = DDGS().text(search_query, max_results=1)
+            if results and len(results) > 0:
+                target_url = results[0]['href']
+                print(f"  Found Admissions URL: {target_url}", flush=True)
+        except Exception as e:
+            print(f"  Search error: {e}. Falling back to default URL.", flush=True)
+            
+        text = read_page(target_url)
         if not text or len(text) < 200:
             print("  SKIPPED - page unreadable", flush=True)
             continue
@@ -199,11 +212,12 @@ def main():
 
         print(f"  Program  : {program}", flush=True)
         print(f"  Status   : {status} | Deadline: {deadline}", flush=True)
+        print(f"  Fees     : {fees}", flush=True)
 
         if status != "CLOSED":
             with open(OUTPUT_FILE, "a", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
-                writer.writerow([rank, name, country, program, status, deadline, fees, scholarships, url])
+                writer.writerow([rank, name, country, program, status, deadline, fees, scholarships, target_url])
             print("  >>> SAVED TO CSV <<<", flush=True)
 
         time.sleep(2)
