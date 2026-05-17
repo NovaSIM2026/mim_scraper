@@ -3,6 +3,11 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+
+concurrency:
+  group: "scraper-group"
+  cancel-in-progress: true
+
 jobs:
   scrape:
     runs-on: ubuntu-latest
