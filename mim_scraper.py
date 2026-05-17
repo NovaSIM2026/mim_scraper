@@ -16,14 +16,18 @@ Search Snippets:
 Return ONLY raw JSON (no markdown):
 {{"program_name":"exact program name found or Not Available","status":"OPEN or CLOSED or UNCLEAR","deadline":"exact date or Not Specified","tuition_fees":"amount with currency or Not Specified","scholarships":"names or Not Specified"}}"""
     
+    models = ["llama-3.1-8b-instant", "gemma2-9b-it", "qwen/qwen3-32b"]
     max_retries = 100
+    current_model_idx = 0
+    
     for attempt in range(max_retries):
+        model_name = models[current_model_idx % len(models)]
         try:
             r = requests.post(
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
                 json={
-                    "model": "qwen/qwen3-32b",
+                    "model": model_name,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.1,
                     "response_format": {"type": "json_object"}
@@ -48,16 +52,27 @@ Return ONLY raw JSON (no markdown):
                         if s_match: wait_time += float(s_match.group(1))
                         wait_time += 2.0 # buffer
                         
+                    if wait_time > 60.0:
+                        print(f"    Daily limit hit on {model_name}. Switching models...", flush=True)
+                        current_model_idx += 1
+                        continue
+                        
                     print(f"    Rate limit hit. Waiting {wait_time:.1f}s...", flush=True)
                     time.sleep(wait_time)
                     continue
-                raise Exception(err_msg)
+                
+                # if another error happens, just switch models
+                print(f"    API Error: {err_msg}. Switching models...", flush=True)
+                current_model_idx += 1
+                continue
                 
             content = data["choices"][0]["message"]["content"].replace("```json", "").replace("```", "").strip()
             return json.loads(content)
         except Exception as e:
             if attempt < max_retries - 1:
-                time.sleep(5)
+                # network error or parsing error, fallback model
+                current_model_idx += 1
+                time.sleep(2)
             else:
                 return None
 
