@@ -1,0 +1,23 @@
+name: MiM University Scraper
+on:
+  workflow_dispatch:
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests
+      - name: Run scraper
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python mim_scraper.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mim-results
+          path: mim_programs.csv
+          retention-days: 30
