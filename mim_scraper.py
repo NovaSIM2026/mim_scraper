@@ -16,7 +16,7 @@ Search Snippets:
 Return ONLY raw JSON (no markdown):
 {{"program_name":"exact program name found or Not Available","status":"OPEN or CLOSED or UNCLEAR","deadline":"exact date or Not Specified","tuition_fees":"amount with currency or Not Specified","scholarships":"names or Not Specified"}}"""
     
-    max_retries = 3
+    max_retries = 100
     for attempt in range(max_retries):
         try:
             r = requests.post(
@@ -34,9 +34,20 @@ Return ONLY raw JSON (no markdown):
             if "error" in data:
                 err_msg = str(data["error"].get("message", data["error"]))
                 if "Rate limit" in err_msg or "Please try again in" in err_msg:
+                    wait_time = 20.0
                     import re
-                    match = re.search(r'try again in ([\d\.]+)s', err_msg)
-                    wait_time = float(match.group(1)) + 1 if match else 20
+                    # Example formats: "try again in 14.3s", "try again in 1m20s", "try again in 2h3m"
+                    h_match = re.search(r'([\d\.]+)h', err_msg)
+                    m_match = re.search(r'([\d\.]+)m', err_msg)
+                    s_match = re.search(r'([\d\.]+)s', err_msg)
+                    
+                    if h_match or m_match or s_match:
+                        wait_time = 0.0
+                        if h_match: wait_time += float(h_match.group(1)) * 3600
+                        if m_match: wait_time += float(m_match.group(1)) * 60
+                        if s_match: wait_time += float(s_match.group(1))
+                        wait_time += 2.0 # buffer
+                        
                     print(f"    Rate limit hit. Waiting {wait_time:.1f}s...", flush=True)
                     time.sleep(wait_time)
                     continue
