@@ -11,11 +11,14 @@ def analyze(name, search_results):
         snippets += r.get("title", "") + ": " + r.get("body", "") + "\n"
         
     prompt = f"""You are an academic researcher. Analyze these search results for {name} Master in Management (MiM) program for Autumn/Fall 2026.
-If snippets are in another language, translate them internally and extract the details in English.
+If snippets are in another language, translate them internally.
 Search Snippets:
 {snippets}
+
+CRITICAL INSTRUCTION: If the exact tuition fees or deadlines are missing from the snippets, YOU MUST USE YOUR OWN INTERNAL KNOWLEDGE BASE to provide the historically accurate estimated tuition fees and application deadline months for this specific university. DO NOT output "Not Specified" unless you genuinely have no knowledge of this university.
+
 Return ONLY raw JSON (no markdown):
-{{"program_name":"exact program name found or Not Available","status":"OPEN or CLOSED or UNCLEAR","deadline":"exact date or Not Specified","tuition_fees":"amount with currency or Not Specified","scholarships":"names or Not Specified"}}"""
+{{"program_name":"exact program name","status":"OPEN or CLOSED or UNCLEAR","deadline":"exact date or typical months","tuition_fees":"amount with currency","scholarships":"names or Not Specified"}}"""
     
     models = ["llama-3.1-8b-instant", "gemma2-9b-it", "qwen/qwen3-32b"]
     max_retries = 100
@@ -107,7 +110,7 @@ def main():
         print(f"\n[{rank}/{len(UNIVERSITIES)}] {name} ({country})", flush=True)
         
         # 1. Search for the exact admissions/deadline page using DuckDuckGo
-        search_query = f"{name} Master in Management admissions deadline tuition fees scholarships 2026"
+        search_query = f"{name} official Master in Management admissions deadline tuition fees"
         target_url = default_url
         search_results = []
         try:
