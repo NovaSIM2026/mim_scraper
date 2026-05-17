@@ -120,21 +120,38 @@ Analyze this website text from {name} for their Master in Management (MiM) or MS
 Text: {text[:14000]}
 Return ONLY raw JSON (no markdown):
 {{"program_name":"name or Not Available","status":"OPEN or CLOSED or UNCLEAR","deadline":"exact date or Not Specified","tuition_fees":"amount with currency or Not Specified","scholarships":"names or Not Specified"}}"""
-    try:
-        r = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
-            json={"model": "llama-3.1-8b-instant", "messages": [{"role": "user", "content": prompt}], "temperature": 0.1},
-            timeout=30
-        )
-        data = r.json()
-        if "error" in data:
-            raise Exception(data["error"]["message"])
-        content = data["choices"][0]["message"]["content"].replace("```json", "").replace("```", "").strip()
-        return json.loads(content)
-    except Exception as e:
-        print(f"    Groq error: {e}", flush=True)
-        return None
+    
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            r = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
+                json={"model": "llama-3.1-8b-instant", "messages": [{"role": "user", "content": prompt}], "temperature": 0.1},
+                timeout=30
+            )
+            data = r.json()
+            if "error" in data:
+                err_msg = str(data["error"].get("message", data["error"]))
+                if "Rate limit" in err_msg or "Please try again in" in err_msg:
+                    # Extract wait time from message or default to 20s
+                    import re
+                    match = re.search(r'try again in ([\d\.]+)s', err_msg)
+                    wait_time = float(match.group(1)) + 1 if match else 20
+                    print(f"    Rate limit hit. Waiting {wait_time:.1f}s...", flush=True)
+                    time.sleep(wait_time)
+                    continue
+                raise Exception(err_msg)
+                
+            content = data["choices"][0]["message"]["content"].replace("```json", "").replace("```", "").strip()
+            return json.loads(content)
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"    Groq error: {e}. Retrying...", flush=True)
+                time.sleep(15)
+            else:
+                print(f"    Groq error after {max_retries} retries: {e}", flush=True)
+                return None
 
 def main():
     print("=== RESUMING SCRAPER ===", flush=True)
