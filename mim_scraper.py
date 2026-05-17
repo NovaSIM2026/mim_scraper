@@ -20,7 +20,7 @@ CRITICAL INSTRUCTION: If the exact tuition fees or deadlines are missing from th
 Return ONLY raw JSON (no markdown):
 {{"program_name":"exact program name","status":"OPEN or CLOSED or UNCLEAR","deadline":"exact date or typical months","tuition_fees":"amount with currency","scholarships":"names or Not Specified"}}"""
     
-    models = ["llama-3.1-8b-instant", "gemma2-9b-it", "qwen/qwen3-32b"]
+    models = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "qwen/qwen3-32b"]
     max_retries = 100
     current_model_idx = 0
     
